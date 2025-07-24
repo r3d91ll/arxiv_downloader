@@ -8,7 +8,7 @@ download:
   retry_delay: 5.0
 
 directories:
-  base_dir: "arxiv_papers"
+  base_dir: "/mnt/data/arxiv_data"
   pdf_subdir: "pdf"
   metadata_subdir: "metadata"
 

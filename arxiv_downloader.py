@@ -217,7 +217,7 @@ def run_job(job: JobConfig, api_client: ArxivAPIClient, download_manager: Downlo
             categories=job.categories,
             max_papers=job.max_papers_per_run or 1000
         )
-    
+
     elif job.start_date and job.end_date:
         run_date_range_download(
             api_client,
@@ -228,7 +228,7 @@ def run_job(job: JobConfig, api_client: ArxivAPIClient, download_manager: Downlo
             categories=job.categories,
             max_papers=job.max_papers_per_run or 10000
         )
-    
+
     elif job.bulk_start_year:
         run_bulk_download(
             api_client,
@@ -359,8 +359,8 @@ def main() -> None:
                 max_papers=args.max
             )
         
-            elif args.command == 'range':
-                run_date_range_download(
+        elif args.command == 'range':
+            run_date_range_download(
                 api_client,
                 download_manager,
                 config,
@@ -370,8 +370,8 @@ def main() -> None:
                 max_papers=args.max
             )
         
-            elif args.command == 'bulk':
-                run_bulk_download(
+        elif args.command == 'bulk':
+            run_bulk_download(
                 api_client,
                 download_manager,
                 config,
@@ -380,8 +380,8 @@ def main() -> None:
                 categories=args.categories
             )
         
-            elif args.command == 'job':
-                if args.job_name in config.jobs:
+        elif args.command == 'job':
+            if args.job_name in config.jobs:
                 run_job(config.jobs[args.job_name], api_client, download_manager, config)
             else:
                 logging.error(f"Job '{args.job_name}' not found in configuration")

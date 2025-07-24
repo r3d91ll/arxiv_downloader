@@ -81,7 +81,19 @@ class ArxivAPIClient:
         try:
             # Extract arxiv ID from the id URL
             id_url = entry.find('{http://www.w3.org/2005/Atom}id').text
-            arxiv_id = id_url.split('/')[-1].split('v')[0]
+            # URL format: http://arxiv.org/abs/hep-lat/9107001v1
+            # or: http://arxiv.org/abs/2401.00001v2
+            
+            # Get everything after /abs/
+            if '/abs/' in id_url:
+                arxiv_id_with_version = id_url.split('/abs/')[-1]
+            else:
+                arxiv_id_with_version = id_url.split('/')[-1]
+            
+            # Remove version number (v1, v2, etc.)
+            arxiv_id = arxiv_id_with_version.split('v')[0]
+            
+            logger.debug(f"Parsed arxiv_id: {arxiv_id} from URL: {id_url}")
             
             # Get title
             title = entry.find('{http://www.w3.org/2005/Atom}title').text.strip()
@@ -105,7 +117,14 @@ class ArxivAPIClient:
             updated = entry.find('{http://www.w3.org/2005/Atom}updated').text
             
             # Get links
-            pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+            # Old format (pre-2007): category/YYMMNNN (no .pdf extension)
+            # New format (2007+): YYMM.NNNNN (with .pdf extension)
+            if '/' in arxiv_id:
+                # Old format - no .pdf extension
+                pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
+            else:
+                # New format - needs .pdf extension
+                pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
             abs_url = f"https://arxiv.org/abs/{arxiv_id}"
             
             return ArxivPaper(

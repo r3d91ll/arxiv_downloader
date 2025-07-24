@@ -1,4 +1,4 @@
-# Safe configuration for long-running backfill - respects ArXiv and runs 24/7 responsibly
+# Configuration for backfilling from year 1991 - safe 24/7 operation
 
 download:
   rate_limit: 3.0  # 3 seconds between each download
@@ -15,11 +15,7 @@ download:
   session_pause_after: 100  # Take a break every 100 downloads
   session_pause_duration: 60.0  # 1 minute break
   
-  # Daily limit - let's calculate a safe number
-  # With 3s between downloads + 10s every 10 downloads:
-  # Average time per download = 3s + (10s/10) = 4s
-  # In 24 hours = 86400s / 4s = 21600 theoretical max
-  # But with breaks and safety margin, let's do 1500-2000 per day
+  # Daily limit
   daily_limit: 1800  # Safe daily limit
 
 directories:
@@ -36,12 +32,12 @@ api:
 logging:
   level: "INFO"
   format: "%(asctime)s - %(levelname)s - %(message)s"
-  file: "logs/backfill_safe.log"
+  file: "logs/backfill_1991.log"
 
 jobs:
-  safe_backfill:
+  backfill_from_1991:
     enabled: true
-    bulk_start_year: 2010
+    bulk_start_year: 1991  # Start from year 1991
     bulk_max_per_month: 500  # Process in smaller monthly chunks
     categories:  # AI/ML categories
       - "cs.AI"

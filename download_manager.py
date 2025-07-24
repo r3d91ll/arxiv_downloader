@@ -3,6 +3,8 @@
 import json
 import logging
 import time
+import re
+import unicodedata
 from datetime import datetime, date
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
@@ -16,6 +18,56 @@ logger = logging.getLogger(__name__)
 
 class DownloadManager:
     """Manages downloading PDFs and saving metadata."""
+    
+    @staticmethod
+    def sanitize_filename(filename: str, max_length: int = 255) -> str:
+        """
+        Sanitize a filename to be safe for all filesystems.
+        
+        Args:
+            filename: The filename to sanitize
+            max_length: Maximum length for the filename (default 255)
+            
+        Returns:
+            A sanitized filename safe for use on all systems
+        """
+        # Normalize unicode characters
+        filename = unicodedata.normalize('NFKD', filename)
+        
+        # Replace path separators and other unsafe characters
+        # Keep alphanumeric, dots, hyphens, and underscores
+        filename = re.sub(r'[^\w\s.-]', '_', filename)
+        
+        # Replace multiple underscores/spaces with single underscore
+        filename = re.sub(r'[\s_]+', '_', filename)
+        
+        # Remove leading/trailing dots and underscores
+        filename = filename.strip('._')
+        
+        # Handle reserved names on Windows
+        reserved_names = {'CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4',
+                         'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2',
+                         'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'}
+        
+        name_parts = filename.rsplit('.', 1)
+        if name_parts[0].upper() in reserved_names:
+            filename = f"_{filename}"
+        
+        # Ensure filename isn't empty
+        if not filename:
+            filename = "unnamed_file"
+        
+        # Truncate to max length while preserving extension if possible
+        if len(filename) > max_length:
+            name_parts = filename.rsplit('.', 1)
+            if len(name_parts) == 2 and len(name_parts[1]) < 10:
+                # Preserve extension
+                max_name_length = max_length - len(name_parts[1]) - 1
+                filename = f"{name_parts[0][:max_name_length]}.{name_parts[1]}"
+            else:
+                filename = filename[:max_length]
+        
+        return filename
     
     def __init__(self, download_config: DownloadConfig, directory_config: DirectoryConfig):
         """Initialize the download manager.
@@ -160,10 +212,14 @@ class DownloadManager:
         """
         self.stats['total_attempted'] += 1
         
-        pdf_filename = f"{paper.arxiv_id}.pdf"
+        # Sanitize arxiv_id for safe filename
+        # e.g., "math/9201254" becomes "math_9201254"
+        safe_arxiv_id = self.sanitize_filename(paper.arxiv_id)
+        
+        pdf_filename = f"{safe_arxiv_id}.pdf"
         pdf_filepath = self.directory_config.pdf_dir / pdf_filename
         
-        metadata_filename = f"{paper.arxiv_id}.json"
+        metadata_filename = f"{safe_arxiv_id}.json"
         metadata_filepath = self.directory_config.metadata_dir / metadata_filename
         
         # Check if already exists
@@ -180,7 +236,7 @@ class DownloadManager:
         
         # Download PDF if not exists
         if not pdf_filepath.exists():
-            logger.info(f"Downloading: {paper.arxiv_id}")
+            logger.info(f"Downloading: {paper.arxiv_id} -> {safe_arxiv_id}")
             if self._download_with_retry(paper.pdf_url, pdf_filepath):
                 logger.info(f"Downloaded: {pdf_filename}")
                 self.stats['successful_downloads'] += 1
@@ -246,8 +302,9 @@ class DownloadManager:
                 break
             
             # Check if file exists before attempting download
-            pdf_path = self.directory_config.pdf_dir / f"{paper.arxiv_id}.pdf"
-            metadata_path = self.directory_config.metadata_dir / f"{paper.arxiv_id}.json"
+            safe_id = paper.arxiv_id.replace('/', '_')
+            pdf_path = self.directory_config.pdf_dir / f"{safe_id}.pdf"
+            metadata_path = self.directory_config.metadata_dir / f"{safe_id}.json"
             already_exists = pdf_path.exists() and metadata_path.exists()
             
             # Download paper

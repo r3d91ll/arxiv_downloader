@@ -77,7 +77,7 @@ Modular architecture with separation of concerns:
    - Progress tracking and statistics
    - Atomic operations (metadata saved with PDF)
 
-4. **Main Entry Point** (`arxiv_downloader_v2.py`)
+4. **Main Entry Point** (`arxiv_downloader.py`)
    - CLI with argparse
    - Support for --config parameter
    - Job execution from configuration

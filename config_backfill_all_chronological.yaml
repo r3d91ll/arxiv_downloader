@@ -1,0 +1,54 @@
+# Configuration for chronological backfill of ALL arXiv papers
+
+download:
+  rate_limit: 3.0  # 3 seconds between each download
+  timeout: 60
+  chunk_size: 8192
+  max_retries: 5
+  retry_delay: 10.0
+  
+  # Pacing controls
+  batch_size: 10
+  batch_pause: 10.0
+  session_pause_after: 100
+  session_pause_duration: 60.0
+  daily_limit: 1800
+
+directories:
+  base_dir: "/mnt/data/arxiv_data"
+  pdf_subdir: "pdf"
+  metadata_subdir: "metadata"
+
+api:
+  base_url: "http://export.arxiv.org/api/query"
+  max_results_per_query: 500
+  default_sort_by: "submittedDate"
+  default_sort_order: "ascending"  # Start from oldest
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(levelname)s - %(message)s"
+  file: "logs/backfill_chronological.log"
+
+jobs:
+  # Download ALL papers in chronological order
+  all_papers_chronological:
+    enabled: true
+    custom_query: "all:*"  # Match all papers
+    max_papers_per_run: 50000  # Process in chunks
+    
+  # Alternative: Download by early categories
+  early_physics:
+    enabled: false
+    custom_query: "cat:hep-ph OR cat:hep-th OR cat:hep-lat OR cat:hep-ex"
+    max_papers_per_run: 10000
+    
+  early_math:
+    enabled: false
+    custom_query: "cat:math OR cat:math.*"
+    max_papers_per_run: 10000
+    
+  early_astro:
+    enabled: false
+    custom_query: "cat:astro-ph OR cat:astro-ph.*"
+    max_papers_per_run: 10000
