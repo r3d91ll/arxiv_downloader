@@ -10,7 +10,7 @@ import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 
 from arxiv_api import ArxivAPIClient
 from config import Config, load_config, JobConfig
@@ -181,6 +181,24 @@ def run_job(job: JobConfig, api_client: ArxivAPIClient, download_manager: Downlo
         logger.info(f"Job {job.name} is disabled, skipping")
         return
     
+    # Validate that only one job type is specified
+    job_types = []
+    if job.custom_query:
+        job_types.append("custom_query")
+    if job.date_range_days:
+        job_types.append("date_range_days")
+    if job.start_date and job.end_date:
+        job_types.append("date_range")
+    if job.bulk_start_year:
+        job_types.append("bulk_download")
+    
+    if len(job_types) == 0:
+        logger.error(f"Job '{job.name}' has no job type specified. Must specify one of: custom_query, date_range_days, start_date/end_date, or bulk_start_year")
+        raise ValueError(f"Job '{job.name}' has no job type specified")
+    elif len(job_types) > 1:
+        logger.error(f"Job '{job.name}' has multiple job types specified: {job_types}. Only one job type is allowed per job.")
+        raise ValueError(f"Job '{job.name}' has multiple job types specified: {job_types}")
+    
     # Handle different job types
     if job.custom_query:
         papers, _ = api_client.search(
@@ -312,72 +330,83 @@ def main() -> None:
         parser.print_help()
         sys.exit(1)
     
-    # Load configuration
-    config = load_config(args.config)
-    setup_logging(config)
+    try:
+        # Load configuration
+        config = load_config(args.config)
+        setup_logging(config)
+        
+        # Initialize components
+        api_client = ArxivAPIClient(config.api, rate_limit=config.download.rate_limit)
+        download_manager = DownloadManager(config.download, config.directories)
+        
+        # Execute command
+        if args.command == 'recent':
+            run_recent_papers(
+                api_client,
+                download_manager,
+                config,
+                days=args.days,
+                categories=args.categories,
+                max_papers=args.max
+            )
+        
+        elif args.command == 'category':
+            run_category_download(
+                api_client,
+                download_manager,
+                config,
+                category=args.category,
+                max_papers=args.max
+            )
+        
+            elif args.command == 'range':
+                run_date_range_download(
+                api_client,
+                download_manager,
+                config,
+                start_date=args.start_date,
+                end_date=args.end_date,
+                categories=args.categories,
+                max_papers=args.max
+            )
+        
+            elif args.command == 'bulk':
+                run_bulk_download(
+                api_client,
+                download_manager,
+                config,
+                start_year=args.start_year,
+                max_per_month=args.max_per_month,
+                categories=args.categories
+            )
+        
+            elif args.command == 'job':
+                if args.job_name in config.jobs:
+                run_job(config.jobs[args.job_name], api_client, download_manager, config)
+            else:
+                logging.error(f"Job '{args.job_name}' not found in configuration")
+                print(f"Available jobs: {', '.join(config.jobs.keys())}")
+                sys.exit(1)
+        
+        elif args.command == 'stats':
+            show_statistics(download_manager)
+        
+        elif args.command == 'cleanup':
+            cleaned = download_manager.clean_incomplete_downloads()
+            if cleaned > 0:
+                print(f"Cleaned up {cleaned} incomplete downloads")
+            else:
+                print("No incomplete downloads found")
     
-    # Initialize components
-    api_client = ArxivAPIClient(config.api, rate_limit=config.download.rate_limit)
-    download_manager = DownloadManager(config.download, config.directories)
-    
-    # Execute command
-    if args.command == 'recent':
-        run_recent_papers(
-            api_client,
-            download_manager,
-            config,
-            days=args.days,
-            categories=args.categories,
-            max_papers=args.max
-        )
-    
-    elif args.command == 'category':
-        run_category_download(
-            api_client,
-            download_manager,
-            config,
-            category=args.category,
-            max_papers=args.max
-        )
-    
-    elif args.command == 'range':
-        run_date_range_download(
-            api_client,
-            download_manager,
-            config,
-            start_date=args.start_date,
-            end_date=args.end_date,
-            categories=args.categories,
-            max_papers=args.max
-        )
-    
-    elif args.command == 'bulk':
-        run_bulk_download(
-            api_client,
-            download_manager,
-            config,
-            start_year=args.start_year,
-            max_per_month=args.max_per_month,
-            categories=args.categories
-        )
-    
-    elif args.command == 'job':
-        if args.job_name in config.jobs:
-            run_job(config.jobs[args.job_name], api_client, download_manager, config)
-        else:
-            logging.error(f"Job '{args.job_name}' not found in configuration")
-            print(f"Available jobs: {', '.join(config.jobs.keys())}")
-            sys.exit(1)
-    
-    elif args.command == 'stats':
-        show_statistics(download_manager)
-    
-    elif args.command == 'cleanup':
-        cleaned = download_manager.clean_incomplete_downloads()
-        if cleaned > 0:
-            print(f"Cleaned up {cleaned} incomplete downloads")
-        else:
-            print("No incomplete downloads found")
+    except KeyboardInterrupt:
+        logging.info("Download interrupted by user")
+        sys.exit(0)
+    except Exception as e:
+        logging.error(f"Unexpected error: {type(e).__name__}: {str(e)}")
+        logging.debug("Full traceback:", exc_info=True)
+        print(f"\nError: {type(e).__name__}: {str(e)}")
+        print("Check the log file for more details.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

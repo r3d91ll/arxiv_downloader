@@ -5,8 +5,9 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
 import xml.etree.ElementTree as ET
-import requests
 from dataclasses import dataclass
+
+import requests
 
 from config import APIConfig
 

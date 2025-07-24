@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a Python utility for downloading research papers from arXiv with configuration support and rate limiting.
 
 **Core Files:**
+
 - `arxiv_downloader.py` - Main entry point with CLI
 - `config.py` - Configuration management with dataclasses
 - `arxiv_api.py` - ArXiv API client with type-safe paper representation
@@ -14,11 +15,13 @@ This is a Python utility for downloading research papers from arXiv with configu
 - `requirements.txt` - Dependencies including PyYAML and type stubs
 
 **Configuration Examples:**
+
 - `config_daily_safe.yaml` - For daily cron jobs
 - `config_backfill_safe.yaml` - For 24/7 backfill operations (1,800/day limit)
 - `config_custom.yaml` - Example custom configurations
 
 **Documentation:**
+
 - `README.md` - Main documentation
 - `CONFIGURATION.md` - Configuration guide and advanced usage
 - `PACING_CALCULATIONS.md` - Rate limit calculations
@@ -26,6 +29,7 @@ This is a Python utility for downloading research papers from arXiv with configu
 ## Key Commands
 
 ### Running the Script
+
 ```bash
 # Install dependencies first
 pip install -r requirements.txt
@@ -95,6 +99,7 @@ Modular architecture with separation of concerns:
 ## Common Development Tasks
 
 When modifying this script:
+
 1. Preserve the single-file architecture unless absolutely necessary
 2. Maintain compatibility with the existing CLI interface
 3. Respect arXiv's rate limiting requirements

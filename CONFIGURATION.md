@@ -69,25 +69,50 @@ Create your own configuration by copying one of the examples:
 
 ```yaml
 download:
-  rate_limit: 3.0  # Seconds between requests
-  timeout: 30      # Request timeout
-  max_retries: 3   # Retry attempts
+  rate_limit: 3.0  # REQUIRED - Seconds between requests (minimum 3.0 for arXiv)
+  timeout: 30      # OPTIONAL - Request timeout in seconds (default: 30)
+  max_retries: 3   # OPTIONAL - Retry attempts for failed downloads (default: 3)
+  chunk_size: 8192 # OPTIONAL - Download chunk size in bytes (default: 8192)
+  retry_delay: 5.0 # OPTIONAL - Delay between retries in seconds (default: 5.0)
+  
+  # Pacing controls (all OPTIONAL)
+  batch_size: 10   # OPTIONAL - Papers per batch before pause (default: None)
+  batch_pause: 10.0 # OPTIONAL - Pause between batches in seconds (default: None)
+  daily_limit: 1800 # OPTIONAL - Maximum downloads per day (default: None)
 
 directories:
-  base_dir: "arxiv_papers"  # Same as before
-  pdf_subdir: "pdf"
-  metadata_subdir: "metadata"
+  base_dir: "arxiv_papers"  # REQUIRED - Base directory for downloads
+  pdf_subdir: "pdf"         # OPTIONAL - Subdirectory for PDFs (default: "pdf")
+  metadata_subdir: "metadata"  # OPTIONAL - Subdirectory for metadata (default: "metadata")
+
+api:
+  base_url: "http://export.arxiv.org/api/query"  # OPTIONAL - ArXiv API URL (default shown)
+  max_results_per_query: 500  # OPTIONAL - Max results per API call (default: 1000, max: 1000)
+  default_sort_by: "submittedDate"  # OPTIONAL - Default sort field (default: "submittedDate")
+  default_sort_order: "descending"  # OPTIONAL - Sort order (default: "descending")
 
 logging:
-  level: "INFO"
-  file: "logs/downloader.log"  # Optional log file
+  level: "INFO"    # OPTIONAL - Log level (default: "INFO")
+  format: "%(asctime)s - %(levelname)s - %(message)s"  # OPTIONAL - Log format
+  file: "logs/downloader.log"  # OPTIONAL - Log file path (default: None, logs to console only)
 
 jobs:
-  my_job:
-    enabled: true
-    categories: ["cs.AI", "cs.LG"]
-    date_range_days: 7  # Last 7 days
-    max_papers_per_run: 1000
+  my_job:          # Job name (user-defined)
+    enabled: true  # OPTIONAL - Whether to run this job (default: true)
+    categories: ["cs.AI", "cs.LG"]  # OPTIONAL - ArXiv categories to filter
+    
+    # Job type (REQUIRED: exactly one of these must be specified)
+    date_range_days: 7  # Option 1: Download papers from last N days
+    # OR
+    # custom_query: 'all:transformer'  # Option 2: Custom arXiv query
+    # OR  
+    # start_date: "2024-01-01"  # Option 3: Date range (both required)
+    # end_date: "2024-01-31"
+    # OR
+    # bulk_start_year: 2020  # Option 4: Bulk download from year
+    
+    max_papers_per_run: 1000  # OPTIONAL - Maximum papers per job run
+    bulk_max_per_month: 500   # OPTIONAL - For bulk downloads only
 ```
 
 ## Data Compatibility
@@ -146,9 +171,9 @@ python arxiv_downloader.py range 2023-01-01 2023-12-31 --categories cs.LG stat.M
 # In your config file
 jobs:
   transformer_papers:
-    enabled: true
-    custom_query: 'all:transformer AND (cat:cs.CL OR cat:cs.LG)'
-    max_papers_per_run: 5000
+    enabled: true  # OPTIONAL - Whether to run this job (default: true)
+    custom_query: 'all:transformer AND (cat:cs.CL OR cat:cs.LG)'  # REQUIRED for custom query jobs
+    max_papers_per_run: 5000  # OPTIONAL - Maximum papers to download
 ```
 
 Then run:
