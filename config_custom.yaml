@@ -1,0 +1,40 @@
+# Example custom configuration for specific research needs
+
+download:
+  rate_limit: 3.0
+  timeout: 30
+  chunk_size: 8192
+  max_retries: 3
+  retry_delay: 5.0
+
+directories:
+  base_dir: "arxiv_nlp_papers"  # Custom directory for NLP papers
+  pdf_subdir: "pdf"
+  metadata_subdir: "metadata"
+
+api:
+  base_url: "http://export.arxiv.org/api/query"
+  max_results_per_query: 500  # Smaller batches
+  default_sort_by: "submittedDate"
+  default_sort_order: "descending"
+
+logging:
+  level: "DEBUG"  # More verbose logging
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/nlp_research.log"
+
+jobs:
+  nlp_transformers:
+    enabled: true
+    custom_query: "all:transformer AND (cat:cs.CL OR cat:cs.LG)"
+    max_papers_per_run: 2000
+    start_date: "2023-01-01"
+    end_date: "2024-12-31"
+    
+  recent_llm:
+    enabled: true
+    custom_query: "all:\"large language model\" OR all:LLM"
+    date_range_days: 30  # Last 30 days
+    categories:
+      - "cs.CL"
+      - "cs.AI"

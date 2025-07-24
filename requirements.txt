@@ -1,0 +1,4 @@
+requests>=2.31.0
+PyYAML>=6.0
+types-requests>=2.31.0
+types-PyYAML>=6.0

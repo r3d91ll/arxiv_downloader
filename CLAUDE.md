@@ -1,0 +1,112 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+This is a Python utility for downloading research papers from arXiv. The codebase now includes:
+
+**Original Version:**
+- `arxiv_downloader.py` - Single-file script (preserved for compatibility)
+- `README.md` - Comprehensive documentation
+
+**Refactored Version (v2):**
+- `arxiv_downloader_v2.py` - Main entry point with CLI
+- `config.py` - Configuration management with dataclasses
+- `arxiv_api.py` - ArXiv API client with type-safe paper representation
+- `download_manager.py` - PDF download and metadata storage
+- `requirements.txt` - Dependencies including PyYAML and type stubs
+- Configuration examples: `config_daily.yaml`, `config_backfill.yaml`, `config_custom.yaml`
+- `MIGRATION.md` - Guide for transitioning from v1 to v2
+
+## Key Commands
+
+### Running the Scripts
+
+**Original version (v1):**
+```bash
+python arxiv_downloader.py recent
+python arxiv_downloader.py category cs.AI
+python arxiv_downloader.py range 2024-01-01 2024-01-31
+python arxiv_downloader.py stats
+```
+
+**New version (v2) with configuration:**
+```bash
+# Install dependencies first
+pip install -r requirements.txt
+
+# Run with default configuration
+python arxiv_downloader_v2.py recent --days 7
+
+# Run with specific configuration file
+python arxiv_downloader_v2.py --config config_daily.yaml job daily_recent
+python arxiv_downloader_v2.py --config config_backfill.yaml job historical_backfill
+
+# Run specific commands
+python arxiv_downloader_v2.py category cs.AI --max 2000
+python arxiv_downloader_v2.py range 2024-01-01 2024-01-31 --categories cs.AI cs.LG
+```
+
+### Development Notes
+
+- **No test suite**: This project has no tests
+- **No linting configuration**: No linting rules are defined  
+- **Dependencies**: PyYAML, requests, and type stubs (see requirements.txt)
+- **Type hints**: v2 has comprehensive type annotations throughout
+- **No build process**: Direct Python script execution
+
+## Architecture
+
+### Version 1 (Original):
+Single-file design with `SimpleArxivDownloader` class handling all functionality.
+
+### Version 2 (Refactored):
+Modular architecture with separation of concerns:
+
+1. **Configuration Module** (`config.py`)
+   - Dataclass-based configuration with type safety
+   - YAML file loading/saving
+   - Supports multiple job definitions
+   - Hierarchical configuration: download, directories, API, logging, jobs
+
+2. **ArXiv API Module** (`arxiv_api.py`)
+   - `ArxivPaper` dataclass for type-safe paper representation
+   - `ArxivAPIClient` for API interactions
+   - Rate limiting enforcement
+   - XML parsing with error handling
+   - Search, date range, and recent paper queries
+
+3. **Download Manager** (`download_manager.py`)
+   - `DownloadManager` handles PDF downloads and metadata storage
+   - Retry logic with configurable attempts
+   - Progress tracking and statistics
+   - Atomic operations (metadata saved with PDF)
+
+4. **Main Entry Point** (`arxiv_downloader_v2.py`)
+   - CLI with argparse
+   - Support for --config parameter
+   - Job execution from configuration
+   - Backward-compatible commands
+
+5. **File Organization**
+   - Uses arXiv IDs directly: `YYMM.NNNNN` format
+   - Example: `2401.00001.pdf` and `2401.00001.json`
+   - Files naturally sort chronologically by submission order
+
+## Important Implementation Details
+
+- **Rate Limiting**: Always maintain 3-second delays between arXiv API requests (arxiv_downloader.py:27, 202-203)
+- **Error Handling**: Failed downloads are logged but don't stop the process
+- **Existing Files**: Script automatically skips files that already exist (arxiv_downloader.py:66-69)
+- **API Limits**: Maximum 1000 papers per API call (arxiv_downloader.py:93)
+- **Bulk Downloads**: Include 30-second pauses between months (arxiv_downloader.py:318)
+
+## Common Development Tasks
+
+When modifying this script:
+1. Preserve the single-file architecture unless absolutely necessary
+2. Maintain compatibility with the existing CLI interface
+3. Respect arXiv's rate limiting requirements
+4. Keep the simple directory structure (pdf/ and metadata/)
+5. Use the existing logging setup for all output
