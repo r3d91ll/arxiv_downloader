@@ -13,6 +13,7 @@ from config import APIConfig
 logger = logging.getLogger(__name__)
 
 
+
 @dataclass
 class ArxivPaper:
     """Represents an ArXiv paper with metadata."""

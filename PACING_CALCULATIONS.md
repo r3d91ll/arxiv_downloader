@@ -109,4 +109,4 @@ The system tracks:
 - Automatic enforcement of daily limits
 - Detailed logging of all activities
 
-Run `python arxiv_downloader_v2.py stats` to see current progress and limits.
+Run `python arxiv_downloader.py stats` to see current progress and limits.

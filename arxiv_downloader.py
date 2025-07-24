@@ -1,352 +1,383 @@
 #!/usr/bin/env python3
 """
-Simple ArXiv PDF Downloader
-Downloads arXiv papers as PDFs into a single directory with standard naming.
-Files self-organize chronologically by arXiv ID.
+ArXiv PDF Downloader - Refactored with Configuration Support
+Downloads arXiv papers as PDFs with metadata, supporting multiple configurations.
 """
 
-import os
+import argparse
+import logging
+import sys
 import time
-import requests
-import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from pathlib import Path
-import logging
-from typing import List, Optional
-import argparse
-import json
+from typing import Optional, List, Dict, Any
 
-class SimpleArxivDownloader:
-    def __init__(self, download_dir: str = "arxiv_papers", rate_limit: float = 3.0):
-        """
-        Simple arXiv downloader that saves PDFs with standard naming.
-        
-        Args:
-            download_dir: Directory to save PDFs and metadata
-            rate_limit: Seconds between requests (respect arXiv limits)
-        """
-        self.download_dir = Path(download_dir)
-        self.pdf_dir = self.download_dir / "pdf"
-        self.metadata_dir = self.download_dir / "metadata"
-        
-        # Create directories
-        self.download_dir.mkdir(exist_ok=True)
-        self.pdf_dir.mkdir(exist_ok=True)
-        self.metadata_dir.mkdir(exist_ok=True)
-        
-        self.rate_limit = rate_limit
-        self.arxiv_api_url = "http://export.arxiv.org/api/query"
-        
-        # Setup logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
+from arxiv_api import ArxivAPIClient
+from config import Config, load_config, JobConfig
+from download_manager import DownloadManager
+
+# Configuration constants
+MONTHLY_PAUSE_SECONDS = 30  # Pause duration between processing months
+
+
+
+def setup_logging(config: Config) -> None:
+    """Setup logging based on configuration."""
+    valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
+    level_str = config.logging.level.upper()
+    
+    if level_str not in valid_levels:
+        raise ValueError(
+            f"Invalid log level '{config.logging.level}'. "
+            f"Must be one of: {', '.join(sorted(valid_levels))}"
         )
-        self.logger = logging.getLogger(__name__)
-        
-        self.logger.info(f"Downloader initialized. PDFs: {self.pdf_dir}, Metadata: {self.metadata_dir}")
-        
-    def save_metadata(self, arxiv_id: str, metadata: dict) -> bool:
-        """Save metadata as JSON file."""
-        metadata_file = self.metadata_dir / f"{arxiv_id}.json"
-        
-        try:
-            with open(metadata_file, 'w', encoding='utf-8') as f:
-                json.dump(metadata, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to save metadata for {arxiv_id}: {e}")
-            return False
     
-    def download_pdf(self, arxiv_id: str) -> bool:
-        """Download a single PDF by arXiv ID."""
-        filename = f"{arxiv_id}.pdf"
-        filepath = self.pdf_dir / filename
-        
-        # Skip if already exists
-        if filepath.exists():
-            self.logger.debug(f"Already exists: {filename}")
-            return True
-            
-        pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-        
-        try:
-            response = requests.get(pdf_url, stream=True, timeout=30)
-            response.raise_for_status()
-            
-            with open(filepath, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-                    
-            self.logger.info(f"Downloaded: {filename}")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to download {arxiv_id}: {e}")
-            return False
+    log_level = getattr(logging, level_str)
     
-    def fetch_papers_with_metadata(self, query: str, max_results: int = 1000, start: int = 0) -> List[dict]:
-        """Fetch arXiv papers with full metadata."""
-        params = {
-            'search_query': query,
-            'start': start,
-            'max_results': min(max_results, 1000),  # arXiv limit
-            'sortBy': 'submittedDate',
-            'sortOrder': 'descending'
-        }
-        
-        try:
-            response = requests.get(self.arxiv_api_url, params=params, timeout=30)
-            response.raise_for_status()
-            
-            root = ET.fromstring(response.content)
-            entries = root.findall('{http://www.w3.org/2005/Atom}entry')
-            
-            papers = []
-            for entry in entries:
-                # Extract arXiv ID
-                id_url = entry.find('{http://www.w3.org/2005/Atom}id').text
-                arxiv_id = id_url.split('/')[-1]
-                
-                # Extract metadata
-                title = entry.find('{http://www.w3.org/2005/Atom}title').text.strip()
-                abstract = entry.find('{http://www.w3.org/2005/Atom}summary').text.strip()
-                published = entry.find('{http://www.w3.org/2005/Atom}published').text
-                updated = entry.find('{http://www.w3.org/2005/Atom}updated').text
-                
-                # Extract authors
-                authors = []
-                for author in entry.findall('{http://www.w3.org/2005/Atom}author'):
-                    name = author.find('{http://www.w3.org/2005/Atom}name').text
-                    authors.append(name)
-                
-                # Extract categories
-                categories = []
-                for category in entry.findall('{http://arxiv.org/schemas/atom}primary_category'):
-                    categories.append(category.get('term'))
-                for category in entry.findall('{http://arxiv.org/schemas/atom}category'):
-                    cat_term = category.get('term')
-                    if cat_term not in categories:
-                        categories.append(cat_term)
-                
-                # Extract links
-                pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
-                abs_url = f"https://arxiv.org/abs/{arxiv_id}"
-                
-                metadata = {
-                    'arxiv_id': arxiv_id,
-                    'title': title,
-                    'authors': authors,
-                    'abstract': abstract,
-                    'categories': categories,
-                    'published': published,
-                    'updated': updated,
-                    'pdf_url': pdf_url,
-                    'abs_url': abs_url,
-                    'fetched_at': datetime.now().isoformat()
-                }
-                
-                papers.append(metadata)
-                
-            return papers
-            
-        except Exception as e:
-            self.logger.error(f"Failed to fetch papers with metadata: {e}")
-            return []
+    handlers: List[logging.Handler] = [logging.StreamHandler()]
     
-    def download_recent_papers(self, days_back: int = 1) -> int:
-        """Download papers from the last N days."""
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days_back)
-        
-        query = f"submittedDate:[{start_date.strftime('%Y%m%d')} TO {end_date.strftime('%Y%m%d')}]"
-        
-        self.logger.info(f"Fetching papers from last {days_back} days...")
-        papers = self.fetch_papers_with_metadata(query, max_results=5000)
-        
-        return self.download_papers_with_metadata(papers)
+    if config.logging.file:
+        # Create logs directory if needed
+        log_file = Path(config.logging.file)
+        log_file.parent.mkdir(exist_ok=True)
+        handlers.append(logging.FileHandler(log_file))
     
-    def download_by_category(self, category: str, max_papers: int = 1000) -> int:
-        """Download papers by category (e.g., 'cs.AI', 'cs.LG')."""
-        query = f"cat:{category}"
-        
-        self.logger.info(f"Fetching {max_papers} papers from category: {category}")
-        papers = self.fetch_papers_with_metadata(query, max_results=max_papers)
-        
-        return self.download_papers_with_metadata(papers)
-    
-    def download_date_range(self, start_date: str, end_date: str, max_papers: int = 10000) -> int:
-        """
-        Download papers from a date range.
-        
-        Args:
-            start_date: Format 'YYYY-MM-DD'
-            end_date: Format 'YYYY-MM-DD'
-            max_papers: Maximum papers to download
-        """
-        start_fmt = start_date.replace('-', '')
-        end_fmt = end_date.replace('-', '')
-        
-        query = f"submittedDate:[{start_fmt} TO {end_fmt}]"
-        
-        self.logger.info(f"Fetching papers from {start_date} to {end_date}")
-        
-        # Handle large date ranges in batches
-        all_papers = []
-        batch_size = 1000
-        start_idx = 0
-        
-        while len(all_papers) < max_papers:
-            batch_papers = self.fetch_papers_with_metadata(query, max_results=batch_size, start=start_idx)
-            if not batch_papers:
-                break
-                
-            all_papers.extend(batch_papers)
-            start_idx += batch_size
-            
-            self.logger.info(f"Fetched {len(all_papers)} papers so far...")
-            time.sleep(self.rate_limit)
-            
-        return self.download_papers_with_metadata(all_papers[:max_papers])
-    
-    def download_papers_with_metadata(self, papers: List[dict]) -> int:
-        """Download a list of papers with metadata."""
-        if not papers:
-            self.logger.warning("No papers to download")
-            return 0
-            
-        self.logger.info(f"Starting download of {len(papers)} papers...")
-        
-        downloaded_count = 0
-        for i, paper in enumerate(papers, 1):
-            arxiv_id = paper['arxiv_id']
-            
-            # Save metadata first
-            if self.save_metadata(arxiv_id, paper):
-                # Then download PDF
-                if self.download_pdf(arxiv_id):
-                    downloaded_count += 1
-            
-            # Rate limiting
-            if i < len(papers):  # Don't sleep after last download
-                time.sleep(self.rate_limit)
-                
-            # Progress update
-            if i % 50 == 0:
-                self.logger.info(f"Progress: {i}/{len(papers)} ({downloaded_count} successful)")
-        
-        self.logger.info(f"Download complete! {downloaded_count}/{len(papers)} successful")
-        return downloaded_count
-    
-    def bulk_download_all(self, start_year: int = 2020, max_per_month: int = 500):
-        """
-        Download arXiv papers in bulk, organized by month.
-        
-        Args:
-            start_year: Year to start from
-            max_per_month: Limit papers per month (for storage management)
-        """
-        current_year = datetime.now().year
-        current_month = datetime.now().month
-        
-        self.logger.info(f"Starting bulk download from {start_year}")
-        
-        total_downloaded = 0
-        
-        for year in range(start_year, current_year + 1):
-            end_month = current_month if year == current_year else 12
-            
-            for month in range(1, end_month + 1):
-                start_date = f"{year}-{month:02d}-01"
-                
-                # Calculate end date (last day of month)
-                if month == 12:
-                    end_date = f"{year}-12-31"
-                else:
-                    next_month = datetime(year, month + 1, 1) - timedelta(days=1)
-                    end_date = next_month.strftime("%Y-%m-%d")
-                
-                self.logger.info(f"Processing {year}-{month:02d}...")
-                
-                count = self.download_date_range(start_date, end_date, max_per_month)
-                total_downloaded += count
-                
-                # Be respectful - longer pause between months
-                time.sleep(30)
-                
-        self.logger.info(f"Bulk download complete! Total: {total_downloaded} papers")
-        return total_downloaded
-    
-    def get_stats(self) -> dict:
-        """Get download statistics."""
-        pdf_files = list(self.pdf_dir.glob("*.pdf"))
-        metadata_files = list(self.metadata_dir.glob("*.json"))
-        
-        if not pdf_files:
-            return {"total_papers": 0, "total_size_gb": 0}
-        
-        total_size = sum(f.stat().st_size for f in pdf_files)
-        
-        return {
-            "total_papers": len(pdf_files),
-            "total_metadata": len(metadata_files),
-            "total_size_gb": round(total_size / (1024**3), 2),
-            "pdf_dir": str(self.pdf_dir),
-            "metadata_dir": str(self.metadata_dir)
-        }
+    logging.basicConfig(
+        level=log_level,
+        format=config.logging.format,
+        handlers=handlers
+    )
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Simple arXiv PDF Downloader")
-    parser.add_argument("--dir", default="arxiv_papers", help="Download directory")
-    parser.add_argument("--rate", type=float, default=3.0, help="Rate limit (seconds)")
+def run_recent_papers(
+    api_client: ArxivAPIClient,
+    download_manager: DownloadManager,
+    config: Config,
+    days: int = 1,
+    categories: Optional[List[str]] = None,
+    max_papers: int = 1000
+) -> None:
+    """Download recent papers from the last N days."""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Fetching papers from the last {days} day(s)")
     
-    subparsers = parser.add_subparsers(dest="command", help="Commands")
+    papers = api_client.get_recent_papers(
+        days_back=days,
+        categories=categories,
+        max_results=max_papers
+    )
+    
+    if papers:
+        download_manager.download_papers(papers, rate_limit=config.download.rate_limit)
+    else:
+        logger.info("No papers found for the specified criteria")
+
+
+def run_category_download(
+    api_client: ArxivAPIClient,
+    download_manager: DownloadManager,
+    config: Config,
+    category: str,
+    max_papers: int = 1000
+) -> None:
+    """Download papers from a specific category."""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Fetching papers from category: {category}")
+    
+    papers, _ = api_client.search(
+        query=f"cat:{category}",
+        max_results=max_papers
+    )
+    
+    if papers:
+        download_manager.download_papers(papers, rate_limit=config.download.rate_limit)
+    else:
+        logger.info(f"No papers found in category {category}")
+
+
+def run_date_range_download(
+    api_client: ArxivAPIClient,
+    download_manager: DownloadManager,
+    config: Config,
+    start_date: str,
+    end_date: str,
+    categories: Optional[List[str]] = None,
+    max_papers: int = 10000
+) -> None:
+    """Download papers within a date range."""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+    except ValueError:
+        logger.error("Invalid date format. Use YYYY-MM-DD")
+        return
+    
+    logger.info(f"Fetching papers from {start_date} to {end_date}")
+    
+    papers = api_client.get_papers_by_date_range(
+        start_date=start,
+        end_date=end,
+        categories=categories,
+        max_results=max_papers
+    )
+    
+    if papers:
+        download_manager.download_papers(papers, rate_limit=config.download.rate_limit)
+    else:
+        logger.info("No papers found for the specified date range")
+
+
+def run_bulk_download(
+    api_client: ArxivAPIClient,
+    download_manager: DownloadManager,
+    config: Config,
+    start_year: int = 2020,
+    max_per_month: int = 500,
+    categories: Optional[List[str]] = None
+) -> None:
+    """Bulk download papers month by month."""
+    logger = logging.getLogger(__name__)
+    
+    current_date = datetime.now()
+    start_date = datetime(start_year, 1, 1)
+    
+    logger.info(f"Starting bulk download from {start_year}")
+    
+    while start_date < current_date:
+        # Calculate end of month
+        if start_date.month == 12:
+            end_date = datetime(start_date.year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end_date = datetime(start_date.year, start_date.month + 1, 1) - timedelta(days=1)
+        
+        logger.info(f"Processing {start_date.strftime('%Y-%m')}")
+        
+        papers = api_client.get_papers_by_date_range(
+            start_date=start_date,
+            end_date=end_date,
+            categories=categories,
+            max_results=max_per_month
+        )
+        
+        if papers:
+            download_manager.download_papers(papers, rate_limit=config.download.rate_limit)
+        
+        # Pause between months
+        logger.info(f"Pausing {MONTHLY_PAUSE_SECONDS} seconds before next month...")
+        time.sleep(MONTHLY_PAUSE_SECONDS)
+        
+        # Move to next month
+        start_date = end_date + timedelta(days=1)
+
+
+def run_job(job: JobConfig, api_client: ArxivAPIClient, download_manager: DownloadManager, config: Config) -> None:
+    """Run a specific job from configuration."""
+    logger = logging.getLogger(__name__)
+    logger.info(f"Running job: {job.name}")
+    
+    if not job.enabled:
+        logger.info(f"Job {job.name} is disabled, skipping")
+        return
+    
+    # Handle different job types
+    if job.custom_query:
+        papers, _ = api_client.search(
+            query=job.custom_query,
+            max_results=job.max_papers_per_run or 1000
+        )
+        if papers:
+            download_manager.download_papers(papers, rate_limit=config.download.rate_limit)
+    
+    elif job.date_range_days:
+        run_recent_papers(
+            api_client,
+            download_manager,
+            config,
+            days=job.date_range_days,
+            categories=job.categories,
+            max_papers=job.max_papers_per_run or 1000
+        )
+    
+    elif job.start_date and job.end_date:
+        run_date_range_download(
+            api_client,
+            download_manager,
+            config,
+            start_date=job.start_date,
+            end_date=job.end_date,
+            categories=job.categories,
+            max_papers=job.max_papers_per_run or 10000
+        )
+    
+    elif job.bulk_start_year:
+        run_bulk_download(
+            api_client,
+            download_manager,
+            config,
+            start_year=job.bulk_start_year,
+            max_per_month=job.bulk_max_per_month,
+            categories=job.categories
+        )
+
+
+def show_statistics(download_manager: DownloadManager) -> None:
+    """Display download statistics."""
+    logger = logging.getLogger(__name__)
+    stats = download_manager.get_statistics()
+    
+    logger.info("\n=== ArXiv Download Statistics ===")
+    logger.info(f"Storage Path: {stats['storage_path']}")
+    logger.info(f"Total Papers: {stats['total_papers']}")
+    logger.info(f"Total Metadata Files: {stats['total_metadata']}")
+    logger.info(f"Total Size: {stats['total_size_gb']} GB")
+    
+    # Daily statistics
+    daily_stats = stats.get('daily_stats', {})
+    if daily_stats:
+        logger.info(f"\nToday's Downloads: {daily_stats['downloads_today']}")
+        if daily_stats['daily_limit']:
+            logger.info(f"Daily Limit: {daily_stats['daily_limit']}")
+            remaining = daily_stats['daily_limit'] - daily_stats['downloads_today']
+            logger.info(f"Remaining Today: {remaining}")
+        
+        if daily_stats.get('recent_days'):
+            logger.info("\nRecent Daily Downloads:")
+            for day, count in sorted(daily_stats['recent_days'].items(), reverse=True)[:7]:
+                logger.info(f"  {day}: {count} downloads")
+    
+    if stats['download_stats']['total_attempted'] > 0:
+        logger.info("\nLast Session:")
+        logger.info(f"  Attempted: {stats['download_stats']['total_attempted']}")
+        logger.info(f"  Successful: {stats['download_stats']['successful_downloads']}")
+        logger.info(f"  Failed: {stats['download_stats']['failed_downloads']}")
+        logger.info(f"  Skipped (existing): {stats['download_stats']['skipped_existing']}")
+
+
+def main() -> None:
+    """Main entry point."""
+    parser = argparse.ArgumentParser(
+        description="ArXiv PDF Downloader with Configuration Support",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    
+    # Global arguments
+    parser.add_argument(
+        '--config', '-c',
+        type=Path,
+        help='Path to configuration file (YAML)'
+    )
+    
+    # Subcommands
+    subparsers = parser.add_subparsers(dest='command', help='Command to run')
     
     # Recent papers
-    recent_parser = subparsers.add_parser("recent", help="Download recent papers")
-    recent_parser.add_argument("--days", type=int, default=1, help="Days back")
+    recent_parser = subparsers.add_parser('recent', help='Download recent papers')
+    recent_parser.add_argument('--days', type=int, default=1, help='Days back to fetch')
+    recent_parser.add_argument('--categories', nargs='+', help='Categories to filter')
+    recent_parser.add_argument('--max', type=int, default=1000, help='Maximum papers')
     
-    # By category
-    cat_parser = subparsers.add_parser("category", help="Download by category")
-    cat_parser.add_argument("category", help="arXiv category (e.g., cs.AI)")
-    cat_parser.add_argument("--max", type=int, default=1000, help="Max papers")
+    # Category download
+    category_parser = subparsers.add_parser('category', help='Download by category')
+    category_parser.add_argument('category', help='ArXiv category (e.g., cs.AI)')
+    category_parser.add_argument('--max', type=int, default=1000, help='Maximum papers')
     
     # Date range
-    date_parser = subparsers.add_parser("range", help="Download date range")
-    date_parser.add_argument("start_date", help="Start date (YYYY-MM-DD)")
-    date_parser.add_argument("end_date", help="End date (YYYY-MM-DD)")
-    date_parser.add_argument("--max", type=int, default=10000, help="Max papers")
+    range_parser = subparsers.add_parser('range', help='Download date range')
+    range_parser.add_argument('start_date', help='Start date (YYYY-MM-DD)')
+    range_parser.add_argument('end_date', help='End date (YYYY-MM-DD)')
+    range_parser.add_argument('--categories', nargs='+', help='Categories to filter')
+    range_parser.add_argument('--max', type=int, default=10000, help='Maximum papers')
     
     # Bulk download
-    bulk_parser = subparsers.add_parser("bulk", help="Bulk download all")
-    bulk_parser.add_argument("--start-year", type=int, default=2020, help="Start year")
-    bulk_parser.add_argument("--max-per-month", type=int, default=500, help="Max per month")
+    bulk_parser = subparsers.add_parser('bulk', help='Bulk download by month')
+    bulk_parser.add_argument('--start-year', type=int, default=2020, help='Start year')
+    bulk_parser.add_argument('--max-per-month', type=int, default=500, help='Max papers per month')
+    bulk_parser.add_argument('--categories', nargs='+', help='Categories to filter')
     
-    # Stats
-    subparsers.add_parser("stats", help="Show download statistics")
+    # Run configured job
+    job_parser = subparsers.add_parser('job', help='Run a configured job')
+    job_parser.add_argument('job_name', help='Name of the job from config file')
+    
+    # Statistics
+    subparsers.add_parser('stats', help='Show download statistics')
+    
+    # Cleanup
+    subparsers.add_parser('cleanup', help='Clean up incomplete downloads')
     
     args = parser.parse_args()
     
-    downloader = SimpleArxivDownloader(args.dir, args.rate)
-    
-    if args.command == "recent":
-        downloader.download_recent_papers(args.days)
-    elif args.command == "category":
-        downloader.download_by_category(args.category, args.max)
-    elif args.command == "range":
-        downloader.download_date_range(args.start_date, args.end_date, args.max)
-    elif args.command == "bulk":
-        downloader.bulk_download_all(args.start_year, args.max_per_month)
-    elif args.command == "stats":
-        stats = downloader.get_stats()
-        print(f"Total papers: {stats['total_papers']}")
-        print(f"Total metadata files: {stats['total_metadata']}")
-        print(f"Total size: {stats['total_size_gb']} GB")
-        print(f"PDF directory: {stats['pdf_dir']}")
-        print(f"Metadata directory: {stats['metadata_dir']}")
-    else:
+    if not args.command:
         parser.print_help()
+        sys.exit(1)
+    
+    # Load configuration
+    config = load_config(args.config)
+    setup_logging(config)
+    
+    # Initialize components
+    api_client = ArxivAPIClient(config.api, rate_limit=config.download.rate_limit)
+    download_manager = DownloadManager(config.download, config.directories)
+    
+    # Execute command
+    if args.command == 'recent':
+        run_recent_papers(
+            api_client,
+            download_manager,
+            config,
+            days=args.days,
+            categories=args.categories,
+            max_papers=args.max
+        )
+    
+    elif args.command == 'category':
+        run_category_download(
+            api_client,
+            download_manager,
+            config,
+            category=args.category,
+            max_papers=args.max
+        )
+    
+    elif args.command == 'range':
+        run_date_range_download(
+            api_client,
+            download_manager,
+            config,
+            start_date=args.start_date,
+            end_date=args.end_date,
+            categories=args.categories,
+            max_papers=args.max
+        )
+    
+    elif args.command == 'bulk':
+        run_bulk_download(
+            api_client,
+            download_manager,
+            config,
+            start_year=args.start_year,
+            max_per_month=args.max_per_month,
+            categories=args.categories
+        )
+    
+    elif args.command == 'job':
+        if args.job_name in config.jobs:
+            run_job(config.jobs[args.job_name], api_client, download_manager, config)
+        else:
+            logging.error(f"Job '{args.job_name}' not found in configuration")
+            print(f"Available jobs: {', '.join(config.jobs.keys())}")
+            sys.exit(1)
+    
+    elif args.command == 'stats':
+        show_statistics(download_manager)
+    
+    elif args.command == 'cleanup':
+        cleaned = download_manager.clean_incomplete_downloads()
+        if cleaned > 0:
+            print(f"Cleaned up {cleaned} incomplete downloads")
+        else:
+            print("No incomplete downloads found")
 
 
 if __name__ == "__main__":

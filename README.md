@@ -2,9 +2,6 @@
 
 A simple, efficient utility for downloading research papers from arXiv with their metadata. Downloads are organized chronologically by arXiv submission order, making this perfect for research analysis, machine learning datasets, and semantic knowledge mapping.
 
-> **Note**: This repository contains two versions:
-> - `arxiv_downloader.py` - Original single-file script (simple, no dependencies except requests)
-> - `arxiv_downloader_v2.py` - Enhanced version with configuration support, daily limits, and better pacing controls
 
 ## Features
 
@@ -42,11 +39,11 @@ arxiv_papers/
    pip install requests
    ```
 
-2. **Download the script:**
+2. **Clone the repository:**
 
    ```bash
-   wget https://raw.githubusercontent.com/your-repo/arxiv_downloader.py
-   # or save the code as arxiv_downloader.py
+   git clone git@github.com:r3d91ll/arxiv_downloader.git
+   cd arxiv_downloader
    ```
 
 3. **Make it executable (optional):**

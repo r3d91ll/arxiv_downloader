@@ -4,48 +4,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Python utility for downloading research papers from arXiv. The codebase now includes:
+This is a Python utility for downloading research papers from arXiv with configuration support and rate limiting.
 
-**Original Version:**
-- `arxiv_downloader.py` - Single-file script (preserved for compatibility)
-- `README.md` - Comprehensive documentation
-
-**Refactored Version (v2):**
-- `arxiv_downloader_v2.py` - Main entry point with CLI
+**Core Files:**
+- `arxiv_downloader.py` - Main entry point with CLI
 - `config.py` - Configuration management with dataclasses
 - `arxiv_api.py` - ArXiv API client with type-safe paper representation
 - `download_manager.py` - PDF download and metadata storage
 - `requirements.txt` - Dependencies including PyYAML and type stubs
-- Configuration examples: `config_daily.yaml`, `config_backfill.yaml`, `config_custom.yaml`
-- `MIGRATION.md` - Guide for transitioning from v1 to v2
+
+**Configuration Examples:**
+- `config_daily_safe.yaml` - For daily cron jobs
+- `config_backfill_safe.yaml` - For 24/7 backfill operations (1,800/day limit)
+- `config_custom.yaml` - Example custom configurations
+
+**Documentation:**
+- `README.md` - Main documentation
+- `CONFIGURATION.md` - Configuration guide and advanced usage
+- `PACING_CALCULATIONS.md` - Rate limit calculations
 
 ## Key Commands
 
-### Running the Scripts
-
-**Original version (v1):**
-```bash
-python arxiv_downloader.py recent
-python arxiv_downloader.py category cs.AI
-python arxiv_downloader.py range 2024-01-01 2024-01-31
-python arxiv_downloader.py stats
-```
-
-**New version (v2) with configuration:**
+### Running the Script
 ```bash
 # Install dependencies first
 pip install -r requirements.txt
 
 # Run with default configuration
-python arxiv_downloader_v2.py recent --days 7
+python arxiv_downloader.py recent --days 7
 
 # Run with specific configuration file
-python arxiv_downloader_v2.py --config config_daily.yaml job daily_recent
-python arxiv_downloader_v2.py --config config_backfill.yaml job historical_backfill
+python arxiv_downloader.py --config config_daily.yaml job daily_recent
+python arxiv_downloader.py --config config_backfill.yaml job historical_backfill
 
 # Run specific commands
-python arxiv_downloader_v2.py category cs.AI --max 2000
-python arxiv_downloader_v2.py range 2024-01-01 2024-01-31 --categories cs.AI cs.LG
+python arxiv_downloader.py category cs.AI --max 2000
+python arxiv_downloader.py range 2024-01-01 2024-01-31 --categories cs.AI cs.LG
 ```
 
 ### Development Notes
@@ -58,10 +52,6 @@ python arxiv_downloader_v2.py range 2024-01-01 2024-01-31 --categories cs.AI cs.
 
 ## Architecture
 
-### Version 1 (Original):
-Single-file design with `SimpleArxivDownloader` class handling all functionality.
-
-### Version 2 (Refactored):
 Modular architecture with separation of concerns:
 
 1. **Configuration Module** (`config.py`)

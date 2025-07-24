@@ -1,6 +1,6 @@
-# Migration Guide: ArXiv Downloader v2
+# Configuration Guide: ArXiv Downloader
 
-This guide helps you migrate from the original `arxiv_downloader.py` to the new modular version with configuration support.
+This guide explains how to use the configuration system and advanced features of the ArXiv downloader.
 
 ## What's New
 
@@ -17,20 +17,20 @@ This guide helps you migrate from the original `arxiv_downloader.py` to the new 
    pip install -r requirements.txt
    ```
 
-2. The new script is `arxiv_downloader_v2.py` (the original remains unchanged)
 
 ## Command Mapping
 
-### Old Commands → New Commands
 
-| Old Command | New Command |
-|-------------|-------------|
-| `python arxiv_downloader.py recent` | `python arxiv_downloader_v2.py recent` |
-| `python arxiv_downloader.py recent --days 7` | `python arxiv_downloader_v2.py recent --days 7` |
-| `python arxiv_downloader.py category cs.AI` | `python arxiv_downloader_v2.py category cs.AI` |
-| `python arxiv_downloader.py range 2024-01-01 2024-01-31` | `python arxiv_downloader_v2.py range 2024-01-01 2024-01-31` |
-| `python arxiv_downloader.py bulk --start-year 2020` | `python arxiv_downloader_v2.py bulk --start-year 2020` |
-| `python arxiv_downloader.py stats` | `python arxiv_downloader_v2.py stats` |
+### Basic Commands
+
+| Command | Description |
+|---------|-------------|
+| `python arxiv_downloader.py recent` | Download recent papers (last day) |
+| `python arxiv_downloader.py recent --days 7` | Download papers from last 7 days |
+| `python arxiv_downloader.py category cs.AI` | Download papers from a category |
+| `python arxiv_downloader.py range 2024-01-01 2024-01-31` | Download date range |
+| `python arxiv_downloader.py bulk --start-year 2020` | Bulk download by year |
+| `python arxiv_downloader.py stats` | Show download statistics |
 
 ### Using Configuration Files
 
@@ -38,13 +38,13 @@ Instead of command-line arguments, you can now use configuration files:
 
 ```bash
 # Use daily configuration
-python arxiv_downloader_v2.py --config config_daily.yaml job daily_recent
+python arxiv_downloader.py --config config_daily.yaml job daily_recent
 
 # Use backfill configuration
-python arxiv_downloader_v2.py --config config_backfill.yaml job historical_backfill
+python arxiv_downloader.py --config config_backfill.yaml job historical_backfill
 
 # Use custom configuration
-python arxiv_downloader_v2.py --config config_custom.yaml job nlp_transformers
+python arxiv_downloader.py --config config_custom.yaml job nlp_transformers
 ```
 
 ## Setting Up Automated Jobs
@@ -53,14 +53,14 @@ python arxiv_downloader_v2.py --config config_custom.yaml job nlp_transformers
 
 1. Create a cron job that runs at midnight GMT:
    ```bash
-   0 0 * * * /usr/bin/python3 /path/to/arxiv_downloader_v2.py --config /path/to/config_daily.yaml job daily_recent
+   0 0 * * * /usr/bin/python3 /path/to/arxiv_downloader.py --config /path/to/config_daily.yaml job daily_recent
    ```
 
 ### Background Backfill
 
 1. Use the backfill configuration to download historical papers:
    ```bash
-   nohup python arxiv_downloader_v2.py --config config_backfill.yaml job historical_backfill &
+   nohup python arxiv_downloader.py --config config_backfill.yaml job historical_backfill &
    ```
 
 ## Configuration File Structure
@@ -104,7 +104,7 @@ The system has multiple safeguards against downloading duplicates:
 2. **Skip Counting**: Tracks how many files were skipped in statistics
 3. **Daily Limit Awareness**: Only counts NEW downloads toward daily limit
 4. **Atomic Operations**: Downloads metadata and PDF together; removes orphans if one fails
-5. **Cleanup Command**: `python arxiv_downloader_v2.py cleanup` removes incomplete downloads
+5. **Cleanup Command**: `python arxiv_downloader.py cleanup` removes incomplete downloads
 
 ### How It Works:
 
@@ -125,22 +125,20 @@ This ensures you can safely restart the script anytime without re-downloading ex
 
 ## Getting Help
 
-- The original script (`arxiv_downloader.py`) remains unchanged
-- Both versions can coexist in the same directory
-- Use `python arxiv_downloader_v2.py --help` for command help
+- Use `python arxiv_downloader.py --help` for command help
 
 ## Example Workflows
 
 ### Daily Research Updates
 ```bash
 # Download yesterday's AI papers
-python arxiv_downloader_v2.py --config config_daily.yaml job daily_recent
+python arxiv_downloader.py --config config_daily.yaml job daily_recent
 ```
 
 ### Building a Dataset
 ```bash
 # Download all 2023 machine learning papers
-python arxiv_downloader_v2.py range 2023-01-01 2023-12-31 --categories cs.LG stat.ML --max 50000
+python arxiv_downloader.py range 2023-01-01 2023-12-31 --categories cs.LG stat.ML --max 50000
 ```
 
 ### Custom Search
@@ -155,5 +153,5 @@ jobs:
 
 Then run:
 ```bash
-python arxiv_downloader_v2.py --config my_config.yaml job transformer_papers
+python arxiv_downloader.py --config my_config.yaml job transformer_papers
 ```
