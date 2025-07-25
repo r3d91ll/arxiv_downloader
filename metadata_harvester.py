@@ -173,8 +173,11 @@ class MetadataHarvester:
     
     def harvest_recent(self, days_back: int = 7, categories: Optional[List[str]] = None):
         """Harvest recent papers metadata."""
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days_back)
+        # End at yesterday to avoid trying to get papers that don't exist yet
+        end_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
+        end_date = end_date.replace(hour=23, minute=59, second=59)
+        start_date = end_date - timedelta(days=days_back-1)
+        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
         
         self.harvest_date_range(start_date, end_date, categories)
     

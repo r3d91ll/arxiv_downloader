@@ -25,33 +25,10 @@ download:
 
 api:
   base_url: "http://export.arxiv.org/api/query"
-  rate_limit: 3.0
   max_results_per_query: 1000
 
 logging:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
-# Job definitions for common tasks
-jobs:
-  # Harvest metadata only (no PDFs)
-  metadata_only:
-    type: "recent"
-    days_back: 7
-    download_pdfs: false
-  
-  # Daily download with conservative settings
-  daily_safe:
-    type: "recent"
-    days_back: 1
-    download_pdfs: true
-    rate_limit: 5.0
-    daily_limit: 1800
-  
-  # Backfill historical data
-  backfill:
-    type: "range"
-    start_date: "2020-01-01"
-    end_date: "2020-12-31"
-    download_pdfs: true
-    rate_limit: 3.0
+# Jobs section removed - not needed for metadata harvester
