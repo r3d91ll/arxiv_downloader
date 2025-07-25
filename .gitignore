@@ -211,3 +211,6 @@ arxiv_papers/
 download_stats.json
 logs/
 .claude/
+find_download_gap.py
+config_archive/*
+old_scripts/*

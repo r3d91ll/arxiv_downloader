@@ -1,0 +1,57 @@
+# Master configuration for ArXiv downloader
+# Use the correct data directory on /mnt/data
+
+directories:
+  base_dir: "/mnt/data/arxiv_data"
+  pdf_subdir: "pdf"
+  metadata_subdir: "metadata"
+
+download:
+  rate_limit: 3.0
+  timeout: 300
+  max_retries: 3
+  retry_delay: 5.0
+  
+  # Batch processing
+  batch_size: 100
+  batch_pause: 30
+  
+  # Session limits
+  session_pause_after: 1000
+  session_pause_duration: 300
+  
+  # Daily limits (optional - set to null for no limit)
+  daily_limit: null
+
+api:
+  base_url: "http://export.arxiv.org/api/query"
+  rate_limit: 3.0
+  max_results_per_query: 1000
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Job definitions for common tasks
+jobs:
+  # Harvest metadata only (no PDFs)
+  metadata_only:
+    type: "recent"
+    days_back: 7
+    download_pdfs: false
+  
+  # Daily download with conservative settings
+  daily_safe:
+    type: "recent"
+    days_back: 1
+    download_pdfs: true
+    rate_limit: 5.0
+    daily_limit: 1800
+  
+  # Backfill historical data
+  backfill:
+    type: "range"
+    start_date: "2020-01-01"
+    end_date: "2020-12-31"
+    download_pdfs: true
+    rate_limit: 3.0
